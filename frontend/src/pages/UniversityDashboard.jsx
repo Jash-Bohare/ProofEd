@@ -27,6 +27,8 @@ function UniversityDashboard() {
     const [certificateId, setCertificateId] = useState("");
     const [certificateHash, setCertificateHash] = useState("");
 
+    const [isIssued, setIsIssued] = useState(false);
+
 
     // ===============================
     // MOCK: University verification
@@ -174,6 +176,33 @@ function UniversityDashboard() {
         return tx.hash;
     };
 
+    const mockFinalizeCertificateAPI = async (certificateId, txHash) => {
+        // simulate backend delay
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        console.log("Backend sync:", {
+            certificateId,
+            txHash,
+            status: "issued",
+        });
+
+        return {
+            success: true,
+        };
+    };
+
+    // Delete mockFinalizeCertificateAPI and add this when backend is ready
+    /* 
+    await fetch("http://localhost:5000/finalize-certificate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        certificateId,
+        txHash,
+    }),
+    });
+    */
+
 
 
     // ===============================
@@ -191,14 +220,18 @@ function UniversityDashboard() {
         };
 
         try {
+            // Store metadata + hash (mock backend)
             const response = await mockIssueCertificateAPI(certificateData);
-
             setCertificateId(response.certificateId);
             setCertificateHash(response.hash);
 
+            // Write hash to blockchain
             const txHash = await issueCertificateOnChain(response.hash);
-
             console.log("Blockchain Tx Hash:", txHash);
+
+            // Finalize certificate (mock backend sync)
+            await mockFinalizeCertificateAPI(response.certificateId, txHash);
+            setIsIssued(true);
         } catch (error) {
             console.error("Issuance Failed", error);
         }
@@ -342,6 +375,14 @@ function UniversityDashboard() {
                             <code>{certificateHash}</code>
                         </div>
                     )}
+
+                    {/* Phase 6 Result */}
+                    {isIssued && (
+                        <p style={{ marginTop: "10px", color: "green" }}>
+                            ✅ Certificate finalized and issued
+                        </p>
+                    )}
+
                 </div>
             )}
         </div>
