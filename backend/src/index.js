@@ -25,7 +25,7 @@ app.use(cors({
 app.use('/api/university', universityRoutes);
 app.use('/api/admin', adminRoutes);
 
-app.use((reqq, res, next) => {
+app.use((req, res, next) => {
   next(new ExpressError(404, 'Route not found'));
 });
 
