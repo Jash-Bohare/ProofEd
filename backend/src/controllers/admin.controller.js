@@ -4,7 +4,6 @@ import { ExpressError } from '../lib/ExpressError.js';
 import { wrapAsync } from '../lib/wrapAsync.js';
 import jwt from 'jsonwebtoken';
 import { sendApprovalEmail, sendRejectionEmail } from '../lib/emailService.js';
-import { approveIssuer } from '../lib/blockchainService.js';
 
 const generateAdminToken = (adminId) => {
     return jwt.sign({ id: adminId }, process.env.JWT_SECRET, {
