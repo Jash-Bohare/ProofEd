@@ -1,6 +1,8 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
+import ProofEdABI from "../contracts/ProofEdABI.json";
+import { CONTRACT_ADDRESS } from "../contracts/contractConfig";
 
 function CertificateVerification() {
   const { txHash } = useParams();
@@ -8,96 +10,104 @@ function CertificateVerification() {
   const [loading, setLoading] = useState(true);
   const [certificate, setCertificate] = useState(null);
   const [hashValid, setHashValid] = useState(null); // null = not checked
+  const [onChainExists, setOnChainExists] = useState(null); // null = not checked
 
   // ===============================
   // MOCK backend fetch (replace later)
   // ===============================
-  const mockFetchCertificate = async (txHash) => {
-    // simulate backend delay
+  const mockFetchCertificate = async () => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    const normalized = {
+      studentName: "Jash Bohare",
+      studentId: "24BCP326",
+      course: "B.Tech CE",
+      grade: "A+",
+      issueDate: "2026-01-09",
+    };
+
     return {
-      studentName: "Rahul Sharma",
-      studentId: "2021CS045",
-      course: "B.Tech Computer Science",
-      grade: "A",
-      issueDate: "2026-01-10",
+      ...normalized,
       issuer: "IIT Delhi",
-      // IMPORTANT: this hash MUST match recomputed hash for success
       hash: ethers.keccak256(
-        ethers.toUtf8Bytes(
-          JSON.stringify({
-            studentName: "Rahul Sharma",
-            studentId: "2021CS045",
-            course: "B.Tech Computer Science",
-            grade: "A",
-            issueDate: "2026-01-10",
-          })
-        )
+        ethers.toUtf8Bytes(JSON.stringify(normalized))
       ),
     };
   };
 
   // ===============================
-  // Recompute hash (same as issuance)
+  // Recompute hash (must match issuance)
   // ===============================
-  const recomputeHash = (certificate) => {
+  const recomputeHash = (cert) => {
     const normalizedMetadata = {
-      studentName: certificate.studentName.trim(),
-      studentId: certificate.studentId.trim(),
-      course: certificate.course.trim(),
-      grade: certificate.grade.trim(),
-      issueDate: certificate.issueDate,
+      studentName: cert.studentName.trim(),
+      studentId: cert.studentId.trim(),
+      course: cert.course.trim(),
+      grade: cert.grade.trim(),
+      issueDate: cert.issueDate,
     };
 
-    const recomputedHash = ethers.keccak256(
+    return ethers.keccak256(
       ethers.toUtf8Bytes(JSON.stringify(normalizedMetadata))
     );
-
-    return recomputedHash;
   };
 
   // ===============================
-  // Fetch + integrity check
+  // Read blockchain (read-only)
+  // ===============================
+  const checkOnChainCertificate = async (certHash) => {
+    try {
+      const provider = new ethers.JsonRpcProvider(
+        "https://eth-sepolia.g.alchemy.com/v2/kNGCTtO0akTqvyPS1Rlsx"
+      );
+
+      const contract = new ethers.Contract(
+        CONTRACT_ADDRESS,
+        ProofEdABI,
+        provider
+      );
+
+      const exists = await contract.certificates(certHash);
+      return exists;
+    } catch (error) {
+      console.error("Blockchain read failed", error);
+      return false;
+    }
+  };
+
+  // ===============================
+  // Fetch → hash check → chain check
   // ===============================
   useEffect(() => {
-    const fetchCertificate = async () => {
+    const verifyCertificate = async () => {
       try {
-        const data = await mockFetchCertificate(txHash);
-        /* 
-        Replace this:
-        const data = await mockFetchCertificate(txHash);
-
-        With this:
-        const response = await fetch(
-        `http://localhost:5000/certificate/${txHash}`
-        );
-
-        if (!response.ok) {
-        throw new Error("Certificate not found");
-        }
-
-        const data = await response.json();
-        */
+        const data = await mockFetchCertificate();
         setCertificate(data);
 
+        // 1️⃣ Recompute hash
         const recomputed = recomputeHash(data);
 
         if (recomputed === data.hash) {
           setHashValid(true);
+
+          // 2️⃣ Read blockchain only if integrity passes
+          const exists = await checkOnChainCertificate(recomputed);
+          setOnChainExists(exists);
         } else {
           setHashValid(false);
+          setOnChainExists(false);
         }
       } catch (error) {
-        console.error("Failed to fetch certificate", error);
+        console.error("Verification failed", error);
         setCertificate(null);
         setHashValid(false);
+        setOnChainExists(false);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCertificate();
+    verifyCertificate();
   }, [txHash]);
 
   // ===============================
@@ -113,7 +123,7 @@ function CertificateVerification() {
         <code>{txHash}</code>
       </p>
 
-      {loading && <p>🔍 Fetching certificate details...</p>}
+      {loading && <p>🔍 Verifying certificate…</p>}
 
       {!loading && certificate && (
         <div style={{ marginTop: "20px" }}>
@@ -125,14 +135,26 @@ function CertificateVerification() {
           <p><strong>Issued By:</strong> {certificate.issuer}</p>
 
           {hashValid === true && (
-            <p style={{ color: "green", marginTop: "10px" }}>
+            <p style={{ color: "green", marginTop: "12px" }}>
               ✅ Certificate data integrity verified
             </p>
           )}
 
           {hashValid === false && (
-            <p style={{ color: "red", marginTop: "10px" }}>
+            <p style={{ color: "red", marginTop: "12px" }}>
               ❌ Certificate data has been tampered with
+            </p>
+          )}
+
+          {hashValid === true && onChainExists === true && (
+            <p style={{ color: "green" }}>
+              ⛓️ Certificate hash found on blockchain
+            </p>
+          )}
+
+          {hashValid === true && onChainExists === false && (
+            <p style={{ color: "red" }}>
+              ❌ Certificate hash NOT found on blockchain
             </p>
           )}
         </div>
