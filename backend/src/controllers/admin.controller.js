@@ -105,3 +105,53 @@ export const getPendingUniversities = wrapAsync(async (req, res) => {
         }))
     });
 });
+
+// Get All Universities (with filters)
+export const getAllUniversities = wrapAsync(async (req, res) => {
+    const { status } = req.query; // Can filter by: pending, approved, rejected
+
+    const query = {};
+    if (status) {
+        query.status = status;
+    }
+
+    const universities = await University.find(query)
+        .select('-verificationToken -verificationTokenExpiry')
+        .sort({ createdAt: -1 });
+
+    res.json({
+        success: true,
+        count: universities.length,
+        data: universities
+    });
+});
+
+// Get Single University Details
+export const getUniversityDetails = wrapAsync(async (req, res) => {
+    const { universityId } = req.params;
+
+    const university = await University.findById(universityId)
+        .select('-verificationToken -verificationTokenExpiry');
+
+    if (!university) {
+        throw new ExpressError(404, 'University not found');
+    }
+
+    res.json({
+        success: true,
+        data: {
+            universityId: university._id,
+            name: university.name,
+            email: university.email,
+            website: university.website,
+            walletAddress: university.walletAddress,
+            emailVerified: university.emailVerified,
+            status: university.status,
+            rejectionReason: university.rejectionReason,
+            approvedAt: university.approvedAt,
+            createdAt: university.createdAt,
+            updatedAt: university.updatedAt,
+            emailDomain: university.email.split('@')[1]
+        }
+    });
+});
