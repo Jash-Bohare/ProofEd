@@ -155,3 +155,68 @@ export const getUniversityDetails = wrapAsync(async (req, res) => {
         }
     });
 });
+
+// Step 6a: Approve University
+export const approveUniversity = wrapAsync(async (req, res) => {
+    const { universityId } = req.params;
+
+    const university = await University.findById(universityId);
+
+    if (!university) {
+        throw new ExpressError(404, 'University not found');
+    }
+
+    if (university.status === 'approved') {
+        throw new ExpressError(400, 'University is already approved');
+    }
+
+    if (!university.emailVerified) {
+        throw new ExpressError(400, 'University email is not verified');
+    }
+
+    if (!university.walletAddress) {
+        throw new ExpressError(400, 'University wallet is not connected');
+    }
+
+    try {
+        // Step 6: On-Chain Action - Approve issuer on blockchain
+        const blockchainResult = await approveIssuer(university.walletAddress);
+
+        if (!blockchainResult.success) {
+            throw new ExpressError(500, `Blockchain approval failed: ${blockchainResult.error || 'Unknown error'}`);
+        }
+
+        // Step 6: Off-Chain Actions - Update database
+        university.status = 'approved';
+        university.approvedAt = new Date();
+        university.rejectionReason = undefined; // Clear any previous rejection reason
+        await university.save();
+
+        // Step 6: Send approval email
+        try {
+            await sendApprovalEmail(university.email, university.name);
+        } catch (emailError) {
+            console.error('Failed to send approval email:', emailError);
+            // Don't fail the approval if email fails
+        }
+
+        res.json({
+            success: true,
+            message: 'University approved successfully',
+            data: {
+                universityId: university._id,
+                name: university.name,
+                status: university.status,
+                walletAddress: university.walletAddress,
+                approvedAt: university.approvedAt,
+                blockchainTransactionHash: blockchainResult.transactionHash || null
+            }
+        });
+
+    } catch (error) {
+        // If blockchain fails, rollback is not needed since we haven't updated DB yet
+        // But if DB update succeeds but blockchain fails, we need to handle it
+        // For now, we do blockchain first, then DB (safer)
+        throw error;
+    }
+});
