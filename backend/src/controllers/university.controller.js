@@ -180,7 +180,7 @@ export const connectWallet = wrapAsync(async (req, res) => {
 
 // Step 4: Get Signup Status
 export const getSignupStatus = wrapAsync(async (req, res) => {
-    const { email } = req.query;
+    const { email } = req.body;
 
     if (!email) {
         throw new ExpressError(400, 'Email is required');
