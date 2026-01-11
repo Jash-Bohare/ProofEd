@@ -114,93 +114,249 @@ function CertificateVerification() {
   // UI
   // ===============================
   return (
-    <div style={{ padding: "40px", maxWidth: "720px", margin: "0 auto" }}>
-      <h1>Certificate Verification</h1>
-
-      <p style={{ fontSize: "14px", color: "#666" }}>
-        Transaction Hash:
-        <br />
-        <code style={{ fontSize: "12px" }}>{txHash}</code>
-      </p>
-
-      {loading && <p>🔍 Verifying certificate…</p>}
-
-      {!loading && verificationStatus && (
-        <div
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f1f5f9",
+        padding: "40px 20px",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "760px",
+          margin: "0 auto",
+          background: "#ffffff",
+          padding: "36px",
+          borderRadius: "18px",
+          boxShadow: "0 16px 40px rgba(0,0,0,0.08)",
+          color: "#0f172a",
+        }}
+      >
+        <h1
           style={{
-            marginTop: "24px",
-            padding: "24px",
-            borderRadius: "10px",
-            border:
-              verificationStatus === "VALID"
-                ? "2px solid #16a34a"
-                : "2px solid #dc2626",
-            background:
-              verificationStatus === "VALID" ? "#f0fdf4" : "#fef2f2",
+            fontSize: "30px",
+            fontWeight: "700",
+            marginBottom: "6px",
           }}
         >
-          <h2
+          Certificate Verification
+        </h1>
+
+        <p
+          style={{
+            fontSize: "15px",
+            color: "#334155",
+            marginBottom: "26px",
+          }}
+        >
+          Verify the authenticity of an academic certificate using blockchain records.
+        </p>
+
+        <div
+          style={{
+            padding: "14px",
+            background: "#e5e7eb",
+            borderRadius: "12px",
+            fontSize: "13px",
+            wordBreak: "break-all",
+            color: "#1e293b",
+            border: "1px solid #cbd5f5",
+          }}
+        >
+          <strong>Transaction Hash</strong>
+          <br />
+          <code style={{ fontSize: "12px" }}>{txHash}</code>
+        </div>
+
+        {loading && (
+          <p
             style={{
-              color: verificationStatus === "VALID" ? "#16a34a" : "#dc2626",
+              marginTop: "22px",
+              fontSize: "15px",
+              fontWeight: "500",
+              color: "#334155",
             }}
           >
-            {verificationStatus === "VALID" ? "✅ Certificate is Authentic" : "❌ Certificate is Invalid"}
-          </h2>
-
-          <p style={{ marginTop: "8px" }}>
-            {verificationStatus === "VALID"
-              ? "This certificate has been verified using blockchain and issuer records."
-              : "This certificate failed verification checks and should not be trusted."}
+            🔍 Verifying certificate…
           </p>
-        </div>
-      )}
+        )}
 
-      {/* DETAILS */}
-      {!loading && certificate && (
-        <div style={{ marginTop: "28px" }}>
-          <h3>Certificate Details</h3>
-
-          <p><strong>Student Name:</strong> {certificate.studentName}</p>
-          <p><strong>Student ID:</strong> {certificate.studentId}</p>
-          <p><strong>Student Email:</strong> {certificate.studentEmail}</p>
-          <p><strong>Course:</strong> {certificate.course}</p>
-          <p><strong>Grade:</strong> {certificate.grade}</p>
-          <p><strong>Issue Date:</strong> {certificate.issueDate}</p>
-
-          <p style={{ marginTop: "10px" }}>
-            <strong>Issued By:</strong> {certificate.issuer}
-            <span
+        {!loading && verificationStatus && (
+          <div
+            style={{
+              marginTop: "30px",
+              padding: "26px",
+              borderRadius: "16px",
+              border:
+                verificationStatus === "VALID"
+                  ? "2px solid #16a34a"
+                  : "2px solid #dc2626",
+              background:
+                verificationStatus === "VALID"
+                  ? "#ecfdf5"
+                  : "#fef2f2",
+            }}
+          >
+            <h2
               style={{
-                marginLeft: "8px",
-                padding: "2px 6px",
-                fontSize: "12px",
-                background: "#e0f2fe",
-                color: "#0369a1",
-                borderRadius: "6px",
+                fontSize: "22px",
+                fontWeight: "700",
+                color:
+                  verificationStatus === "VALID"
+                    ? "#15803d"
+                    : "#b91c1c",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
               }}
             >
-              ✔ Verified Issuer
-            </span>
-          </p>
+              {verificationStatus === "VALID" ? "✅" : "❌"}
+              {verificationStatus === "VALID"
+                ? "Certificate is Authentic"
+                : "Certificate is Invalid"}
+            </h2>
 
-          {verificationStatus === "VALID" && (
-            <p style={{ marginTop: "12px" }}>
-              🔗 Blockchain Proof:{" "}
-              <a
-                href={`https://sepolia.etherscan.io/tx/${txHash}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View on Sepolia Explorer
-              </a>
+            <p
+              style={{
+                marginTop: "10px",
+                fontSize: "15px",
+                color: "#1e293b",
+              }}
+            >
+              {verificationStatus === "VALID"
+                ? "This certificate has been verified using blockchain and issuer records."
+                : "This certificate failed verification checks and should not be trusted."}
             </p>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+        {!loading && certificate && (
+          <div style={{ marginTop: "34px" }}>
+            <h3
+              style={{
+                fontSize: "20px",
+                fontWeight: "700",
+                marginBottom: "16px",
+              }}
+            >
+              Certificate Details
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "14px 22px",
+                fontSize: "15px",
+              }}
+            >
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Student Name:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {certificate.studentName}
+                </span>
+              </p>
+
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Student ID:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {certificate.studentId}
+                </span>
+              </p>
+
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Email:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {certificate.studentEmail}
+                </span>
+              </p>
+
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Course:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {certificate.course}
+                </span>
+              </p>
+
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Grade:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {certificate.grade}
+                </span>
+              </p>
+
+              <p>
+                <span style={{ color: "#475569", fontWeight: "500" }}>Issue Date:</span>{" "}
+                <span style={{ color: "#020617", fontWeight: "600" }}>
+                  {new Date(certificate.issueDate).toLocaleDateString()}
+                </span>
+              </p>
+            </div>
+
+
+            <div style={{ marginTop: "18px", fontSize: "15px" }}>
+              <strong>Issued By:</strong>{" "}
+              <span style={{ fontWeight: "600" }}>{certificate.issuer}</span>
+              <span
+                style={{
+                  marginLeft: "10px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  background: "#dbeafe",
+                  color: "#1d4ed8",
+                  borderRadius: "999px",
+                  fontWeight: "600",
+                }}
+              >
+                ✔ Verified Issuer
+              </span>
+            </div>
+
+            {verificationStatus === "VALID" && (
+              <div
+                style={{
+                  marginTop: "18px",
+                  fontSize: "15px",
+                  fontWeight: "500",
+                }}
+              >
+                🔗 Blockchain Proof:{" "}
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    color: "#1d4ed8",
+                    fontWeight: "600",
+                    textDecoration: "underline",
+                  }}
+                >
+                  View on Sepolia Explorer
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              marginTop: "22px",
+              padding: "14px",
+              background: "#fee2e2",
+              color: "#7f1d1d",
+              borderRadius: "12px",
+              fontWeight: "500",
+            }}
+          >
+            {error}
+          </div>
+        )}
+      </div>
     </div>
   );
+
+
 }
 
 export default CertificateVerification;

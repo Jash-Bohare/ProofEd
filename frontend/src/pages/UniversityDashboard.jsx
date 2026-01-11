@@ -7,303 +7,475 @@ import ProofEdABI from "../contracts/ProofEdABI.json";
 import { CONTRACT_ADDRESS } from "../contracts/contractConfig";
 
 function UniversityDashboard() {
-  const navigate = useNavigate();
+    const navigate = useNavigate();
 
-  // ===============================
-  // Access control
-  // ===============================
-  const [authChecked, setAuthChecked] = useState(false);
+    // ===============================
+    // Access control
+    // ===============================
+    const [authChecked, setAuthChecked] = useState(false);
 
-  // ===============================
-  // Wallet
-  // ===============================
-  const [walletAddress, setWalletAddress] = useState("");
+    // ===============================
+    // Wallet
+    // ===============================
+    const [walletAddress, setWalletAddress] = useState("");
 
-  // ===============================
-  // Certificate form
-  // ===============================
-  const [studentName, setStudentName] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [studentEmail, setStudentEmail] = useState("");
-  const [course, setCourse] = useState("");
-  const [grade, setGrade] = useState("");
-  const [issueDate, setIssueDate] = useState("");
+    // ===============================
+    // Certificate form
+    // ===============================
+    const [studentName, setStudentName] = useState("");
+    const [studentId, setStudentId] = useState("");
+    const [studentEmail, setStudentEmail] = useState("");
+    const [course, setCourse] = useState("");
+    const [grade, setGrade] = useState("");
+    const [issueDate, setIssueDate] = useState("");
 
-  // ===============================
-  // Result state
-  // ===============================
-  const [certificateId, setCertificateId] = useState("");
-  const [certificateHash, setCertificateHash] = useState("");
-  const [txHash, setTxHash] = useState("");
-  const [issued, setIssued] = useState(false);
+    // ===============================
+    // Result state
+    // ===============================
+    const [certificateId, setCertificateId] = useState("");
+    const [certificateHash, setCertificateHash] = useState("");
+    const [txHash, setTxHash] = useState("");
+    const [issued, setIssued] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
 
-  // ===============================
-  // PHASE 6.1 — Access Guard
-  // ===============================
-  useEffect(() => {
-    const checkAccess = async () => {
-      const email = localStorage.getItem("signupEmail");
+    // ===============================
+    // PHASE 6.1 — Access Guard
+    // ===============================
+    useEffect(() => {
+        const checkAccess = async () => {
+            const email = localStorage.getItem("signupEmail");
 
-      if (!email) {
-        navigate("/university/signup");
-        return;
-      }
+            if (!email) {
+                navigate("/university/signup");
+                return;
+            }
 
-      const res = await fetch(
-        `http://localhost:5000/api/university/signup-status?email=${email}`,
-        { credentials: "include" }
-      );
+            const res = await fetch(
+                `http://localhost:5000/api/university/signup-status?email=${email}`,
+                { credentials: "include" }
+            );
 
-      const data = await res.json();
+            const data = await res.json();
 
-      if (!res.ok || data.data.status !== "approved") {
-        navigate("/university/waiting-approval");
-        return;
-      }
+            if (!res.ok || data.data.status !== "approved") {
+                navigate("/university/waiting-approval");
+                return;
+            }
 
-      setAuthChecked(true);
+            setAuthChecked(true);
+        };
+
+        checkAccess();
+    }, [navigate]);
+
+    if (!authChecked) {
+        return <p style={{ padding: "40px" }}>Checking dashboard access…</p>;
+    }
+
+    // ===============================
+    // Wallet connect
+    // ===============================
+    const connectWallet = async () => {
+        if (!window.ethereum) {
+            alert("MetaMask not installed");
+            return;
+        }
+
+        const accounts = await window.ethereum.request({
+            method: "eth_requestAccounts",
+        });
+
+        setWalletAddress(accounts[0]);
     };
 
-    checkAccess();
-  }, [navigate]);
+    // ===============================
+    // Backend — Create certificate (6.2–6.3)
+    // ===============================
+    const issueCertificateBackend = async (metadata) => {
+        const issuerEmail = localStorage.getItem("signupEmail");
 
-  if (!authChecked) {
-    return <p style={{ padding: "40px" }}>Checking dashboard access…</p>;
-  }
+        const res = await fetch(
+            "http://localhost:5000/api/university/issue-certificate",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    ...metadata,
+                    issuerEmail,
+                }),
+            }
+        );
 
-  // ===============================
-  // Wallet connect
-  // ===============================
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("MetaMask not installed");
-      return;
-    }
+        const data = await res.json();
 
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
+        if (!res.ok) {
+            throw new Error(data.message || "Certificate creation failed");
+        }
 
-    setWalletAddress(accounts[0]);
-  };
+        return data.data; // { certificateId, certificateHash }
+    };
 
-  // ===============================
-  // Backend — Create certificate (6.2–6.3)
-  // ===============================
-  const issueCertificateBackend = async (metadata) => {
-    const issuerEmail = localStorage.getItem("signupEmail");
+    // ===============================
+    // Blockchain write (6.4)
+    // ===============================
+    const issueCertificateOnChain = async (hash) => {
+        if (!window.ethereum) {
+            throw new Error("MetaMask not installed");
+        }
 
-    const res = await fetch(
-      "http://localhost:5000/api/university/issue-certificate",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...metadata,
-          issuerEmail,
-        }),
-      }
-    );
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
 
-    const data = await res.json();
+        const contract = new ethers.Contract(
+            CONTRACT_ADDRESS,
+            ProofEdABI,
+            signer
+        );
 
-    if (!res.ok) {
-      throw new Error(data.message || "Certificate creation failed");
-    }
+        const tx = await contract.issueCertificate(hash);
+        await tx.wait();
 
-    return data.data; // { certificateId, certificateHash }
-  };
+        return tx.hash;
+    };
 
-  // ===============================
-  // Blockchain write (6.4)
-  // ===============================
-  const issueCertificateOnChain = async (hash) => {
-    if (!window.ethereum) {
-      throw new Error("MetaMask not installed");
-    }
+    // ===============================
+    // Backend finalize (6.4)
+    // ===============================
+    const finalizeCertificateBackend = async (certificateId, transactionHash) => {
+        const res = await fetch(
+            "http://localhost:5000/api/university/finalize-certificate",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    certificateId,
+                    transactionHash,
+                }),
+            }
+        );
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
+        const data = await res.json();
 
-    const contract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      ProofEdABI,
-      signer
-    );
+        if (!res.ok) {
+            throw new Error(data.message || "Finalization failed");
+        }
+    };
 
-    const tx = await contract.issueCertificate(hash);
-    await tx.wait();
+    // ===============================
+    // FULL ISSUE FLOW (END-TO-END)
+    // ===============================
+    const handleIssueCertificate = async (e) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
 
-    return tx.hash;
-  };
+        try {
+            // 1️⃣ Off-chain create
+            const payload = {
+                studentName,
+                studentId,
+                studentEmail,
+                course,
+                grade,
+                issueDate,
+            };
 
-  // ===============================
-  // Backend finalize (6.4)
-  // ===============================
-  const finalizeCertificateBackend = async (certificateId, transactionHash) => {
-    const res = await fetch(
-      "http://localhost:5000/api/university/finalize-certificate",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          certificateId,
-          transactionHash,
-        }),
-      }
-    );
+            const res = await issueCertificateBackend(payload);
+            setCertificateId(res.certificateId);
+            setCertificateHash(res.certificateHash);
 
-    const data = await res.json();
+            // 2️⃣ On-chain write
+            const tx = await issueCertificateOnChain(res.certificateHash);
+            setTxHash(tx);
 
-    if (!res.ok) {
-      throw new Error(data.message || "Finalization failed");
-    }
-  };
+            // 3️⃣ Backend finalize
+            await finalizeCertificateBackend(res.certificateId, tx);
 
-  // ===============================
-  // FULL ISSUE FLOW (END-TO-END)
-  // ===============================
-  const handleIssueCertificate = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+            setIssued(true);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    try {
-      // 1️⃣ Off-chain create
-      const payload = {
-        studentName,
-        studentId,
-        studentEmail,
-        course,
-        grade,
-        issueDate,
-      };
+    const verificationURL = `${window.location.origin}/cert/${txHash}`;
 
-      const res = await issueCertificateBackend(payload);
-      setCertificateId(res.certificateId);
-      setCertificateHash(res.certificateHash);
+    // ===============================
+    // UI
+    // ===============================
+    return (
+        <div
+            style={{
+                minHeight: "100vh",
+                background: "#f9fafb",
+                padding: "40px 20px",
+            }}
+        >
+            <div
+                style={{
+                    maxWidth: "900px",
+                    margin: "0 auto",
+                }}
+            >
+                {/* PAGE TITLE */}
+                <h1
+                    style={{
+                        fontSize: "28px",
+                        fontWeight: "700",
+                        marginBottom: "28px",
+                        color: "#111827",
+                    }}
+                >
+                    University Dashboard
+                </h1>
 
-      // 2️⃣ On-chain write
-      const tx = await issueCertificateOnChain(res.certificateHash);
-      setTxHash(tx);
+                {/* WALLET CARD */}
+                <div
+                    style={{
+                        background: "#ffffff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "16px",
+                        padding: "24px",
+                        marginBottom: "28px",
+                    }}
+                >
+                    {!walletAddress ? (
+                        <>
+                            <p
+                                style={{
+                                    color: "#374151",
+                                    marginBottom: "16px",
+                                    fontSize: "14px",
+                                }}
+                            >
+                                Connect your verified wallet to issue blockchain-backed
+                                certificates.
+                            </p>
 
-      // 3️⃣ Backend finalize
-      await finalizeCertificateBackend(res.certificateId, tx);
+                            <button
+                                onClick={connectWallet}
+                                style={{
+                                    padding: "12px 18px",
+                                    borderRadius: "10px",
+                                    border: "none",
+                                    background: "#111827",
+                                    color: "white",
+                                    fontSize: "14px",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Connect Wallet
+                            </button>
+                        </>
+                    ) : (
+                        <p
+                            style={{
+                                fontSize: "14px",
+                                color: "#374151",
+                            }}
+                        >
+                            <strong>Connected Wallet:</strong>{" "}
+                            <span
+                                style={{
+                                    fontFamily: "monospace",
+                                    background: "#f3f4f6",
+                                    padding: "4px 8px",
+                                    borderRadius: "6px",
+                                }}
+                            >
+                                {walletAddress}
+                            </span>
+                        </p>
+                    )}
+                </div>
 
-      setIssued(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+                {/* ISSUE CERTIFICATE CARD */}
+                {walletAddress && (
+                    <div
+                        style={{
+                            background: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "16px",
+                            padding: "28px",
+                        }}
+                    >
+                        <h2
+                            style={{
+                                fontSize: "22px",
+                                marginBottom: "22px",
+                                color: "#111827",
+                            }}
+                        >
+                            Issue Certificate
+                        </h2>
 
-  const verificationURL = `${window.location.origin}/cert/${txHash}`;
+                        <form onSubmit={handleIssueCertificate}>
+                            {[
+                                { placeholder: "Student Name", value: studentName, setter: setStudentName },
+                                { placeholder: "Student ID", value: studentId, setter: setStudentId },
+                                { placeholder: "Student Email", value: studentEmail, setter: setStudentEmail, type: "email" },
+                                { placeholder: "Course", value: course, setter: setCourse },
+                                { placeholder: "Grade", value: grade, setter: setGrade },
+                            ].map((field, idx) => (
+                                <input
+                                    key={idx}
+                                    type={field.type || "text"}
+                                    placeholder={field.placeholder}
+                                    value={field.value}
+                                    onChange={(e) => field.setter(e.target.value)}
+                                    required
+                                    style={{
+                                        width: "100%",
+                                        padding: "12px",
+                                        marginBottom: "14px",
+                                        borderRadius: "10px",
+                                        border: "1px solid #d1d5db",
+                                        background: "#ffffff",
+                                        color: "#111827",
+                                        fontSize: "14px",
+                                        outline: "none",
+                                    }}
+                                />
+                            ))}
 
-  // ===============================
-  // UI
-  // ===============================
-  return (
-    <div style={{ padding: "40px", maxWidth: "540px" }}>
-      <h1>University Dashboard</h1>
+                            <input
+                                type="date"
+                                value={issueDate}
+                                onChange={(e) => setIssueDate(e.target.value)}
+                                required
+                                style={{
+                                    width: "100%",
+                                    padding: "12px",
+                                    marginBottom: "20px",
+                                    borderRadius: "10px",
+                                    border: "1px solid #d1d5db",
+                                    background: "#ffffff",
+                                    color: "#111827",
+                                    fontSize: "14px",
+                                }}
+                            />
 
-      {!walletAddress && (
-        <button onClick={connectWallet}>Connect Wallet</button>
-      )}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                style={{
+                                    width: "100%",
+                                    padding: "14px",
+                                    borderRadius: "12px",
+                                    border: "none",
+                                    background: "#111827",
+                                    color: "white",
+                                    fontSize: "15px",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                {loading ? "Issuing…" : "Issue Certificate"}
+                            </button>
+                        </form>
 
-      {walletAddress && (
-        <>
-          <p><strong>Connected Wallet:</strong> {walletAddress}</p>
+                        {error && (
+                            <div
+                                style={{
+                                    marginTop: "16px",
+                                    padding: "12px",
+                                    borderRadius: "10px",
+                                    background: "#fef2f2",
+                                    color: "#991b1b",
+                                    fontSize: "14px",
+                                }}
+                            >
+                                {error}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-          <h2>Issue Certificate</h2>
+                {/* SUCCESS + QR */}
+                {issued && (
+                    <div
+                        style={{
+                            marginTop: "36px",
+                            background: "#f0fdf4",
+                            border: "1px solid #bbf7d0",
+                            borderRadius: "16px",
+                            padding: "26px",
+                        }}
+                    >
+                        <h3
+                            style={{
+                                color: "#166534",
+                                marginBottom: "12px",
+                                fontSize: "18px",
+                            }}
+                        >
+                            ✅ Certificate Issued Successfully
+                        </h3>
 
-          <form onSubmit={handleIssueCertificate}>
-            <input
-              placeholder="Student Name"
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
-              required
-            /><br />
+                        <p style={{ fontSize: "14px", color: "#374151" }}>
+                            <strong>Certificate ID:</strong> {certificateId}
+                        </p>
 
-            <input
-              placeholder="Student ID"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              required
-            /><br />
+                        <p style={{ marginTop: "12px", fontSize: "14px", color: "#374151" }}>
+                            <strong>Blockchain Transaction</strong>
+                        </p>
 
-            <input
-              type="email"
-              placeholder="Student Email"
-              value={studentEmail}
-              onChange={(e) => setStudentEmail(e.target.value)}
-              required
-            /><br />
+                        <code
+                            style={{
+                                display: "block",
+                                marginTop: "6px",
+                                fontSize: "13px",
+                                background: "#ecfdf5",
+                                padding: "10px",
+                                borderRadius: "8px",
+                                color: "#065f46",          // 🔥 darker green text
+                                fontFamily: "monospace",
+                            }}
+                        >
+                            {txHash}
+                        </code>
 
-            <input
-              placeholder="Course"
-              value={course}
-              onChange={(e) => setCourse(e.target.value)}
-              required
-            /><br />
 
-            <input
-              placeholder="Grade"
-              value={grade}
-              onChange={(e) => setGrade(e.target.value)}
-              required
-            /><br />
 
-            <input
-              type="date"
-              value={issueDate}
-              onChange={(e) => setIssueDate(e.target.value)}
-              required
-            /><br />
+                        <h4
+                            style={{
+                                marginTop: "22px",
+                                marginBottom: "10px",
+                                color: "#111827",
+                            }}
+                        >
+                            Verification QR Code
+                        </h4>
 
-            <button type="submit" disabled={loading}>
-              {loading ? "Issuing…" : "Issue Certificate"}
-            </button>
-          </form>
+                        <QRCodeCanvas
+                            value={verificationURL}
+                            size={220}
+                            level="H"
+                            includeMargin
+                        />
 
-          {error && <p style={{ color: "red" }}>{error}</p>}
-        </>
-      )}
-
-      {issued && (
-        <div style={{ marginTop: "30px" }}>
-          <p style={{ color: "green", fontSize: "16px" }}>
-            ✅ Certificate Issued Successfully
-          </p>
-
-          <p><strong>Certificate ID:</strong> {certificateId}</p>
-
-          <p><strong>Blockchain Transaction:</strong></p>
-          <code>{txHash}</code>
-
-          <h3 style={{ marginTop: "20px" }}>Verification QR Code</h3>
-
-          <QRCodeCanvas
-            value={verificationURL}
-            size={220}
-            level="H"
-            includeMargin={true}
-          />
-
-          <p style={{ marginTop: "10px" }}>
-            <a href={verificationURL} target="_blank" rel="noreferrer">
-              {verificationURL}
-            </a>
-          </p>
+                        <p style={{ marginTop: "12px", fontSize: "13px" }}>
+                            <a
+                                href={verificationURL}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: "#2563eb" }}
+                            >
+                                {verificationURL}
+                            </a>
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
-      )}
-    </div>
-  );
+    );
+
+
+
 }
 
 export default UniversityDashboard;
