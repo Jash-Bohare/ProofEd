@@ -2,8 +2,18 @@ import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import Admin from "../models/admin.model.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+
+// Fix __dirname in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from backend root
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
+// dotenv.config();
 
 const createAdmin = async () => {
   await mongoose.connect(process.env.MONGO_URI);
